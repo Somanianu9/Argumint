@@ -5,6 +5,20 @@ const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
+
+// Test DB connection
+async function testDbConnection() {
+  try {
+    await prisma.$connect();
+    console.log('Database connection successful.');
+  } catch (error) {
+    console.error('Failed to connect to the database:', error);
+    process.exit(1); // Exit if we can't connect to the DB
+  }
+}
+
+testDbConnection();
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -48,14 +62,15 @@ async function verifyFlip(message) {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.user.walletAddress);
 
-  socket.on('joinRoom', async ({ roomId, team }) => {
+  socket.on('joinRoom', async ({ roomId }) => {
     try {
       socket.join(roomId);
       await prisma.user.update({
         where: { walletAddress: socket.user.walletAddress },
-        data: { roomId, team },
+        data: { roomId: roomId, team: null },
       });
-      socket.to(roomId).emit('userJoined', { userId: socket.user.id, team });
+      console.log(`User ${socket.user.walletAddress} joined room ${roomId}`);
+      socket.to(roomId).emit('userJoined', { userId: socket.user.id });
     } catch (error) {
       console.error('Error in joinRoom:', error);
       socket.emit('error', { message: 'Failed to join room.' });
@@ -63,59 +78,36 @@ io.on('connection', (socket) => {
   });
 
   socket.on('newMessage', async ({ roomId, message }) => {
-    try {
-      const newMessage = await prisma.message.create({
-        data: {
-          content: message,
-          authorId: socket.user.id,
-          roomId,
-        },
-      });
-      // For debugging, send a simple string instead of the object
-      io.to(roomId).emit('messageBroadcast', `Message received: ${newMessage.content}`);
-    } catch (error) {
-      console.error('Error in newMessage:', error);
-      socket.emit('error', { message: 'Failed to send message.' });
+  try {
+    if (!message || !roomId) {
+      console.warn(`Invalid message or roomId:`, { roomId, message });
+      return socket.emit('error', { message: 'Invalid input' });
     }
-  });
 
-  socket.on('flipTeam', async ({ roomId, message, persuaderId }) => {
-    try {
-      const user = await prisma.user.findUnique({ where: { id: socket.user.id } });
-      if (!user) {
-        return socket.emit('error', { message: 'User not found.' });
-      }
-      const oldTeam = user.team;
-      const newTeam = oldTeam === 'A' ? 'B' : 'A';
+    const newMessage = await prisma.message.create({
+      data: {
+        content: message,
+        authorId: socket.user.id,
+        roomId,
+      },
+    });
 
-      const isValidFlip = await verifyFlip(message);
+    const serializableMessage = {
+      id: newMessage.id,
+      content: newMessage.content,
+      createdAt: newMessage.createdAt.toISOString(),
+      updatedAt: newMessage.updatedAt.toISOString(),
+      authorId: newMessage.authorId,
+      roomId: newMessage.roomId,
+    };
 
-      if (isValidFlip) {
-        await prisma.user.update({
-          where: { id: socket.user.id },
-          data: { team: newTeam },
-        });
+    io.to(roomId).emit('messageBroadcast', serializableMessage);
+  } catch (error) {
+    console.error('Error in newMessage:', error);
+    socket.emit('error', { message: 'Failed to send message.' });
+  }
+});
 
-        await prisma.teamSwitch.create({
-          data: {
-            userId: socket.user.id,
-            fromTeam: oldTeam,
-            toTeam: newTeam,
-            persuaderId,
-          },
-        });
-
-        io.to(roomId).emit('userFlipped', {
-          userId: socket.user.id,
-          newTeam,
-          persuaderId,
-        });
-      }
-    } catch (error) {
-      console.error('Error in flipTeam:', error);
-      socket.emit('error', { message: 'Failed to flip team.' });
-    }
-  });
 
   socket.on('disconnect', (reason) => {
     console.log(`User disconnected: ${reason}`);
