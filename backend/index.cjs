@@ -2,9 +2,11 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const { PrismaClient } = require('@prisma/client');
-const jwt = require('jsonwebtoken');
-
+const jwt = require('jsonwebtoken')
+const cors = require('cors');
 const prisma = new PrismaClient();
+
+
 
 // Test DB connection
 async function testDbConnection() {
@@ -21,6 +23,7 @@ testDbConnection();
 
 const app = express();
 const server = http.createServer(app);
+app.use(cors());
 const io = new Server(server, {
   cors: {
     origin: "*", // Allow all origins for testing
@@ -47,7 +50,7 @@ io.use((socket, next) => {
     if (err) {
       return next(new Error('Authentication error: Invalid token'));
     }
-    socket.user = user;
+    socket.user = user;  // What user?
     next();
   });
 });
@@ -60,7 +63,7 @@ async function verifyFlip(message) {
 }
 
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.user.walletAddress);
+  console.log('A user connected:', socket.id);
 
   socket.on('joinRoom', async ({ roomId }) => {
     try {
@@ -77,28 +80,28 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('newMessage', async ({ roomId, message }) => {
+
+  socket.on('newMessage', async ({authorId, roomId, message}) => {
   try {
     if (!message || !roomId) {
       console.warn(`Invalid message or roomId:`, { roomId, message });
       return socket.emit('error', { message: 'Invalid input' });
     }
+    console.log(message);
 
-    const newMessage = await prisma.message.create({
-      data: {
-        content: message,
-        authorId: socket.user.id,
-        roomId,
-      },
-    });
+    // const newMessage = await prisma.message.create({
+    //   data: {
+    //     content: message,
+    //     authorId: socket.user.id,
+    //     roomId,
+    //   },
+    // });
 
     const serializableMessage = {
-      id: newMessage.id,
-      content: newMessage.content,
-      createdAt: newMessage.createdAt.toISOString(),
-      updatedAt: newMessage.updatedAt.toISOString(),
-      authorId: newMessage.authorId,
-      roomId: newMessage.roomId,
+      content: message,
+      authorId: socket.user.id,
+      roomId,
+      createdAt: new Date().toISOString(),
     };
 
     io.to(roomId).emit('messageBroadcast', serializableMessage);
@@ -120,7 +123,7 @@ app.post('/rooms', async (req, res) => {
   if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
   }
-  const room = await prisma.room.create({
+  const room = await prisma.Room.create({
     data: {
       topic,
     },
@@ -129,7 +132,7 @@ app.post('/rooms', async (req, res) => {
 });
 
 app.get('/rooms', async (req, res) => {
-  const rooms = await prisma.room.findMany({
+  const rooms = await prisma.Room.findMany({
     include: {
       users: true,
     },
