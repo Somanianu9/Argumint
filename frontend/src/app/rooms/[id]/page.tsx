@@ -79,10 +79,19 @@ export default function RoomPage() {
 
       </div>
  <div>
-  <input type="text" placeholder='Enter your message...' className='text-black' />
-  <button onClick={sendMessage} className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors">
-    Send
-  </button>
+  <input
+      type="text"
+      placeholder="Enter your message..."
+      className="text-black"
+      value={newMessage}
+      onChange={(e) => setNewMessage(e.target.value)}
+    />
+    <button
+      onClick={sendMessage}
+      className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
+    >
+      Send
+    </button>
  </div>
 
     </div>
