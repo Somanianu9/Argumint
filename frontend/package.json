@@ -9,11 +9,17 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@0xsequence/connect": "^5.3.7",
+    "@0xsequence/hooks": "^5.3.7",
+    "@tanstack/react-query": "^5.83.0",
+    "0xsequence": "^2.3.23",
     "ethers": "^6.15.0",
     "next": "15.4.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "viem": "^2.33.0",
+    "wagmi": "^2.16.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
