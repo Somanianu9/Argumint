@@ -1,233 +1,202 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-// Interface to interact with the NFT contract
 interface IArgumintNFT {
     function mintForWinner(address _winner) external;
 }
-
-/**
- * @title Argumint
- * @dev The main contract for the Proof of Persuasion Protocol.
- * Manages debates, teams, points, and triggers NFT rewards.
- */
+error invalidDebateData(string reason);
+error debateEnded(uint256 debateId);
+error roomFull(uint256 debateId, uint8 team);
+error debateNotStarted(uint256 debateId);
 contract Argumint {
-    // ======== STATE VARIABLES ========
+    address public immutable owner;
+    IArgumintNFT public nft;
 
-    address public owner;
-    IArgumintNFT public nftContract;
 
-    struct Question {
-        string questionText;
-        string optionOne;
-        string optionTwo;
-        uint256 startTime;
-        uint256 endTime;
+    struct Participant {
+        uint8  team;       // 0 = none, 1 or 2
+        bool   flipped;    // has switched once
+        uint32 totalFlips; // how many people this user flipped
+        uint32 points;     // accumulated points
     }
 
     struct Debate {
-        uint256 teamOneScore;
-        uint256 teamTwoScore;
-        // To store the final members of each team for iteration
-        address[] teamOneMembers;
-        address[] teamTwoMembers;
-        // For quick lookups of a user's current team (0=none, 1=teamOne, 2=teamTwo)
-        mapping(address => uint8) memberTeam;
-        bool isFinalized;
+        uint64   start;
+        uint32   duration;
+        uint16   maxPerTeam;
+        bool     finalized;
+        address[] team1;
+        address[] team2;
     }
 
-    Question[] public questions;
-    mapping(uint256 => Debate) public debates;
+    uint256 public debateCount;  // will be used as debate ID
+    mapping(uint256 => Debate) private debates; // debate ID => Debate
+    mapping(uint256 => mapping(address => Participant)) private parts; // debate ID => (user address => Participant)
 
-    // ======== EVENTS ========
-
-    event QuestionCreated(uint256 indexed questionId);
-    event TeamJoined(
-        uint256 indexed questionId,
-        address indexed user,
-        uint8 indexed teamId
-    );
-    event TeamSwitched(
-        uint256 indexed questionId,
-        address indexed user,
-        uint8 newTeamId,
-        address indexed converter
-    );
-    event DebateFinalized(uint256 indexed questionId, uint8 winningTeam);
-
-    // ======== MODIFIERS ========
+    event DebateCreated(uint256 indexed debateId, string title,uint32 startDelay , uint32 duration);
+    event Joined(uint256 indexed debateId, address indexed who, uint8 team);
+    event Finished(uint256 indexed debateId, uint256 team1Score, uint256 team2Score);
+    event Flipped(uint256 indexed debateId, address indexed user, address indexed persuader); // may need the current team or extract it from the user
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
+        require(msg.sender == owner, "Not owner");
         _;
     }
-
-    // ======== CORE FUNCTIONS ========
 
     constructor() {
         owner = msg.sender;
     }
 
-    /**
-     * @notice Creates a new question and initializes its debate state.
-     */
-    function createQuestion(
-        string memory _questionText,
-        string memory _optionOne,
-        string memory _optionTwo,
-        uint256 _durationInSeconds
-    ) public onlyOwner {
-        require(_durationInSeconds > 0, "Duration must be positive");
-        uint256 startTime = block.timestamp;
-        uint256 endTime = startTime + _durationInSeconds;
-
-        questions.push(
-            Question({
-                questionText: _questionText,
-                optionOne: _optionOne,
-                optionTwo: _optionTwo,
-                startTime: startTime,
-                endTime: endTime
-            })
-        );
-        emit QuestionCreated(questions.length - 1);
+    function setNFT(address _nft) external onlyOwner {
+        nft = IArgumintNFT(_nft);
     }
 
-    /**
-     * @notice Allows a user to join a team for the first time.
-     * @param _questionId The ID of the debate.
-     * @param _optionId The team to join (1 or 2).
-     */
-    function joinTeam(uint256 _questionId, uint8 _optionId) public {
-        Question storage q = questions[_questionId];
-        Debate storage debate = debates[_questionId];
-
-        require(block.timestamp < q.endTime, "Debate has ended");
-        require(_optionId == 1 || _optionId == 2, "Invalid option ID");
-        require(
-            debate.memberTeam[msg.sender] == 0,
-            "You have already joined a team"
-        );
-
-        debate.memberTeam[msg.sender] = _optionId;
-        if (_optionId == 1) {
-            debate.teamOneMembers.push(msg.sender);
-            debate.teamOneScore += 1; // Loyal members are worth 1 point
-        } else {
-            debate.teamTwoMembers.push(msg.sender);
-            debate.teamTwoScore += 1;
+    function createDebate(string calldata title, uint32 startDelay ,uint256 duration, uint16 maxPerTeam) external onlyOwner {
+        if (bytes(title).length == 0) {
+            revert invalidDebateData("Title cannot be empty");
         }
-        emit TeamJoined(_questionId, msg.sender, _optionId);
-    }
-
-    /**
-     * @notice Allows a user to switch teams, prompted by a "converter".
-     * @param _questionId The ID of the debate.
-     * @param _converter The address of the user from the opposing team who persuaded the switch.
-     */
-    function switchTeam(uint256 _questionId, address _converter) public {
-        Question storage q = questions[_questionId];
-        Debate storage debate = debates[_questionId];
-
-        require(block.timestamp < q.endTime, "Debate has ended");
-        uint8 currentTeamId = debate.memberTeam[msg.sender];
-        require(currentTeamId != 0, "You must join a team before switching");
-
-        uint8 converterTeamId = debate.memberTeam[_converter];
-        require(
-            converterTeamId != 0 && converterTeamId != currentTeamId,
-            "Converter must be on the opposing team"
-        );
-
-        uint8 newTeamId = converterTeamId;
-
-        // Update scores: -1 from old team, +3 to new team
-        // Update teams and member arrays
-        if (currentTeamId == 1) {
-            // Leaving team 1 for team 2
-            debate.teamOneScore -= 1;
-            debate.teamTwoScore += 3;
-            _removeAddressFromArray(debate.teamOneMembers, msg.sender);
-            debate.teamTwoMembers.push(msg.sender);
-        } else {
-            // Leaving team 2 for team 1
-            debate.teamTwoScore -= 1;
-            debate.teamOneScore += 3;
-            _removeAddressFromArray(debate.teamTwoMembers, msg.sender);
-            debate.teamOneMembers.push(msg.sender);
+        if (maxPerTeam <= 1) {
+            revert invalidDebateData("Not enough participants per team");
         }
-
-        debate.memberTeam[msg.sender] = newTeamId;
-        emit TeamSwitched(_questionId, msg.sender, newTeamId, _converter);
+        if (startDelay < 1 || duration < 1) {
+            revert invalidDebateData("Start delay and duration must be at least 1 second");
+        }
+        debateCount += 1;
+        Debate storage d = debates[debateCount];
+        d.start = uint64(block.timestamp +  startDelay  * 1 seconds);
+        d.duration = duration;
+        d.maxPerTeam = maxPerTeam;
+        emit DebateCreated(debateCount, title,startDelay , duration);
     }
 
-    /**
-     * @notice Finalizes a debate, determines the winner, and mints NFTs.
-     */
-    function finalizeDebate(uint256 _questionId) public {
-        Question storage q = questions[_questionId];
-        Debate storage debate = debates[_questionId];
+    function joinTeam(uint256 id, uint8 team) external {
+        Debate storage d = debates[id];
 
-        require(block.timestamp >= q.endTime, "Debate has not ended yet");
-        require(!debate.isFinalized, "Debate is already finalized");
-        require(
-            address(nftContract) != address(0),
-            "NFT contract address not set"
-        );
+        if(block.timestamp >= d.start + d.duration) {
+            revert debateEnded(id);
+        }
+        Participant storage p = parts[id][msg.sender];
 
-        debate.isFinalized = true;
-        uint8 winningTeam;
-
-        if (debate.teamOneScore > debate.teamTwoScore) {
-            winningTeam = 1;
-            for (uint i = 0; i < debate.teamOneMembers.length; i++) {
-                nftContract.mintForWinner(debate.teamOneMembers[i]);
+require(p.team == 0, "Already joined a team");
+        if (team == 1) {
+            if (d.team1.length >= d.maxPerTeam) {
+                revert roomFull(id, 1);
             }
-        } else if (debate.teamTwoScore > debate.teamOneScore) {
-            winningTeam = 2;
-            for (uint i = 0; i < debate.teamTwoMembers.length; i++) {
-                nftContract.mintForWinner(debate.teamTwoMembers[i]);
-            }
+            d.team1.push(msg.sender);
         } else {
-            // It's a draw, no NFTs minted.
-            winningTeam = 0;
+            if (d.team2.length >= d.maxPerTeam) {
+                revert roomFull(id, 2);
+            }
+            d.team2.push(msg.sender);
         }
-        emit DebateFinalized(_questionId, winningTeam);
+        p.team = team;
+        emit Joined(id, msg.sender, team);
     }
 
-    /**
-     * @dev Function created to know on which team a user is on.
-     */
+    function switchTeam(uint256 id, address persuader) external {
+        Debate storage d = debates[id];
+        if(block.timestamp >= d.start + d.duration) {
+            revert debateEnded(id);
+        }
 
-    function getTeam(
-        uint256 _questionId,
-        address _user
-    ) public view returns (uint8) {
-        return debates[_questionId].memberTeam[_user];
+        Participant storage user = parts[id][msg.sender];
+        Participant storage pdr  = parts[id][persuader];
+        require(user.team > 0 && pdr.team > 0 && user.team != pdr.team, "Bad switch");
+        require(!user.flipped, "Already flipped");
+
+        // move user between arrays
+        _move(d.team1, d.team2, msg.sender, user.team);
+        user.team = 3 - user.team;
+
+        // record persuasion
+        user.flipped = true;
+        pdr.totalFlips += 1;
+        pdr.points     += 3;
+
+        emit Flipped(debateId, user, persuader);
     }
 
-    // ======== HELPER & ADMIN FUNCTIONS ========
+    function finishDebate(uint256 id) external {
+    Debate storage d = debates[id];
 
-    /**
-     * @dev Internal helper to remove an address from an array. Gas-intensive.
-     */
-    function _removeAddressFromArray(
-        address[] storage _array,
-        address _addrToRemove
-    ) internal {
-        for (uint i = 0; i < _array.length; i++) {
-            if (_array[i] == _addrToRemove) {
-                _array[i] = _array[_array.length - 1];
-                _array.pop();
-                return;
+    // 1) Ensure the debate window has passed
+    if (block.timestamp < d.start + d.duration) {
+        revert debateEnded(id);
+    }
+    // 2) Ensure we haven't already finalized
+    if (d.finalized) {
+        revert debateEnded(id);
+    }
+
+    // Mark as finalized to prevent re‑entrancy or double‑finalization
+    d.finalized = true;
+
+    // 3) Compute scores
+    uint256 team1Score = _score(id, d.team1);
+    uint256 team2Score = _score(id, d.team2);
+
+    // 4) Emit the final scores
+    emit Finished(id, team1Score, team2Score);
+
+    // 5) Determine winners array (empty on tie)
+    address[] storage winners =
+        team1Score > team2Score ? d.team1
+      : team2Score > team1Score ? d.team2
+      : new address;
+
+    // 6) Reward **all** winners
+    for (uint i = 0; i < winners.length; ++i) {
+        address user = winners[i];
+        Participant storage p = parts[id][user];
+
+        // base reward + flipped bonus
+        p.points += 1 + (p.flipped ? 2 : 0);
+
+        // mint the NFT achievement
+        nft.mintForWinner(user);
+    }
+}
+
+
+    // ——— Helpers ———
+
+    function _move(
+        address[] storage from,
+        address[] storage to,
+        address who,
+        uint8 team
+    ) private {
+        address[] storage src = team == 1 ? from : to;
+        address[] storage dst = team == 1 ? to   : from;
+        uint len = src.length;
+        for (uint i; i < len; ++i) {
+            if (src[i] == who) {
+                src[i] = src[--len];
+                src.pop();
+                break;
             }
         }
+        dst.push(who);
     }
 
-    /**
-     * @notice Sets the address of the NFT contract.
-     */
-    function setNftContract(address _nftContractAddress) public onlyOwner {
-        nftContract = IArgumintNFT(_nftContractAddress);
+    function _score(uint256 id, address[] storage members) private view returns (uint256 sum) {
+        for (uint i; i < members.length; ++i) {
+            Participant storage p = parts[id][members[i]];
+            sum += p.flipped ? 3 : 1;
+        }
+    }
+
+    // ——— Read Functions ———
+
+    function getTeam(uint256 id, address who) external view returns (uint8) {
+        return parts[id][who].team;
+    }
+
+    function getPoints(uint256 id, address who) external view returns (uint32) {
+        return parts[id][who].points;
+    }
+
+    function getFlips(uint256 id, address who) external view returns (uint32) {
+        return parts[id][who].totalFlips;
     }
 }
