@@ -17,7 +17,7 @@ contract ArgumintNFT is ERC721, Ownable {
 
     constructor(
         address initialOwner
-    ) ERC721("Argumint", "AM") Ownable(initialOwner) {}
+    ) ERC721("Mind Flip", "MF") Ownable(initialOwner) {}
 
     /**
      * @dev Sets the address of the main Argumint contract, which is allowed to mint tokens.
@@ -28,15 +28,22 @@ contract ArgumintNFT is ERC721, Ownable {
     }
 
     /**
-     * @dev Mints a new NFT to a specified winner. Can only be called by the Minter contract.
+     * @dev Mints a new NFT to a specified flipper. Can only be called by the Minter contract.
      */
-    function mintForWinner(address _winner) public {
+    function mintForFlipper(address _flipper) public {
         require(
             msg.sender == minterAddress,
             "Caller is not the authorized minter"
         );
         require(minterAddress != address(0), "Minter address not set");
         uint256 tokenId = _nextTokenId++;
-        _safeMint(_winner, tokenId);
+        _safeMint(_flipper, tokenId);
     }
+    // /**
+    // * @dev mints nft for top 3 performers
+    // */
+    // function mintForTopPerformers(address  winner) external onlyOwner {
+    //     require(winner != address(0), "No winners provided");
+
+    // }
 }
