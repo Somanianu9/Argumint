@@ -5,6 +5,11 @@ const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken')
 const cors = require('cors');
 const prisma = new PrismaClient();
+const cron = require('node-cron');
+const { runLogProcessor } = require("./transform.js");
+
+
+
 
 
 
@@ -53,6 +58,14 @@ app.use(express.json());
 //     next();
 //   });
 // });
+
+cron.schedule('*/10 * * * * *', () => {
+  console.log('Running scheduled log processing job...');
+  runLogProcessor();
+});
+
+
+
 
 // Placeholder for NLP verification
 async function verifyFlip(message) {

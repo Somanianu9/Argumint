@@ -1,7 +1,3 @@
-
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,46 +8,88 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  username   String   @unique
-  walletAddress String   @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  messages    Message[]
-  teamSwitches TeamSwitch[]
-  room        Room?      @relation(fields: [roomId], references: [id])
-  roomId      String?
-  team        String?
+  id               String    @id @default(cuid())
+  username         String?   @unique
+  walletAddress    String    @unique
+  debateId         BigInt?
+  team             Int?
+  joinedAt         DateTime?
+  flipsAsPersuader Flip[]    @relation("PersuaderFlips")
+  flips            Flip[]    @relation("UserFlips")
+  messages         Message[]
+  debate           Debate?   @relation(fields: [debateId], references: [debateId])
+}
+
+model Debate {
+  debateId    BigInt          @id
+  title       String
+  description String?
+  isActive    Boolean         @default(true)
+  duration    Int
+  createdAt   DateTime        @default(now())
+  start       DebateStart?
+  finished    FinishedDebate?
+  flips       Flip[]
+  messages    Message[]       @relation("DebateMessages")
+  room        Room?
+  users       User[]
 }
 
 model Room {
-  id        String   @id @default(cuid())
-  topic     String
-  description String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
-  messages  Message[]
+  id       String  @id @default(cuid())
+  isActive Boolean @default(true)
+  duration Int
+  debateId BigInt? @unique
+  debate   Debate? @relation(fields: [debateId], references: [debateId])
 }
 
 model Message {
   id        String   @id @default(cuid())
   content   String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  author    User     @relation(fields: [authorId], references: [id])
   authorId  String
-  room      Room     @relation(fields: [roomId], references: [id])
-  roomId    String
+  debateId  BigInt?
+  author    User     @relation(fields: [authorId], references: [id])
+  debate    Debate?  @relation("DebateMessages", fields: [debateId], references: [debateId])
 }
 
-model TeamSwitch {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
+model DebateStart {
+  debateId        BigInt   @id
+  actualStartTime DateTime
+  debate          Debate   @relation(fields: [debateId], references: [debateId])
+}
+
+model Flip {
+  id          Int      @id @default(autoincrement())
+  debateId    BigInt
   userId      String
+  persuaderId String?
+  flippedAt   DateTime @default(now())
   fromTeam    String
   toTeam      String
-  persuaderId String?
+  debate      Debate   @relation(fields: [debateId], references: [debateId])
+  persuader   User?    @relation("PersuaderFlips", fields: [persuaderId], references: [id])
+  user        User     @relation("UserFlips", fields: [userId], references: [id])
+}
+
+model FinishedDebate {
+  debateId   BigInt   @id
+  team1Score Int
+  team2Score Int
+  endedAt    DateTime @default(now())
+  debate     Debate   @relation(fields: [debateId], references: [debateId])
+}
+
+model source_1 {
+  id                String   @id
+  block_number      BigInt?
+  block_hash        String?
+  transaction_hash  String?
+  transaction_index BigInt?
+  log_index         BigInt?
+  address           String?
+  data              String?
+  topics            String?
+  block_timestamp   BigInt?
+  processed         Boolean?  @default(false)
 }
