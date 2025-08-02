@@ -11,7 +11,7 @@ model User {
   id               String    @id @default(cuid())
   username         String?   @unique
   walletAddress    String    @unique
-  debateId         BigInt?
+  debateId         Int?
   team             Int?
   joinedAt         DateTime?
   flipsAsPersuader Flip[]    @relation("PersuaderFlips")
@@ -21,7 +21,7 @@ model User {
 }
 
 model Debate {
-  debateId    BigInt          @id
+  debateId    Int          @id
   title       String
   description String?
   isActive    Boolean         @default(true)
@@ -39,7 +39,7 @@ model Room {
   id       String  @id @default(cuid())
   isActive Boolean @default(true)
   duration Int
-  debateId BigInt? @unique
+  debateId Int? @unique
   debate   Debate? @relation(fields: [debateId], references: [debateId])
 }
 
@@ -48,20 +48,20 @@ model Message {
   content   String
   createdAt DateTime @default(now())
   authorId  String
-  debateId  BigInt?
+  debateId  Int
   author    User     @relation(fields: [authorId], references: [id])
   debate    Debate?  @relation("DebateMessages", fields: [debateId], references: [debateId])
 }
 
 model DebateStart {
-  debateId        BigInt   @id
+  debateId        Int   @id
   actualStartTime DateTime
   debate          Debate   @relation(fields: [debateId], references: [debateId])
 }
 
 model Flip {
   id          Int      @id @default(autoincrement())
-  debateId    BigInt
+  debateId    Int
   userId      String
   persuaderId String?
   flippedAt   DateTime @default(now())
@@ -73,7 +73,7 @@ model Flip {
 }
 
 model FinishedDebate {
-  debateId   BigInt   @id
+  debateId   Int   @id
   team1Score Int
   team2Score Int
   endedAt    DateTime @default(now())

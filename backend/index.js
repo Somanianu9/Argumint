@@ -135,10 +135,8 @@ app.post('/rooms', async (req, res) => {
 });
 
 app.get('/rooms', async (req, res) => {
-  const rooms = await prisma.Room.findMany({
-    include: {
-      users: true,
-    },
+  const rooms = await prisma.Debate.findMany({
+   
   });
   res.json(rooms);
 });
