@@ -1,81 +1,47 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const { PrismaClient } = require('@prisma/client');
-const jwt = require('jsonwebtoken')
-const cors = require('cors');
-const prisma = new PrismaClient();
-const cron = require('node-cron');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const { PrismaClient } = require("@prisma/client");
+const jwt = require("jsonwebtoken");
+const cors = require("cors");
+const cron = require("node-cron");
 const { runLogProcessor } = require("./transform.js");
 
-
-
-
-
-
-// Test DB connection
-async function testDbConnection() {
-  try {
-    await prisma.$connect();
-    console.log('Database connection successful.');
-  } catch (error) {
-    console.error('Failed to connect to the database:', error);
-    process.exit(1); // Exit if we can't connect to the DB
-  }
-}
-testDbConnection();
-
+const prisma = new PrismaClient();
 const app = express();
 const server = http.createServer(app);
+
 app.use(cors());
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000", // Allow all origins for testing
-    methods: ["GET", "POST"]
-  }
-});
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
 app.use(express.json());
 
-// Middleware for authenticating socket connections
-// io.use((socket, next) => {
-//   const authHeader = socket.handshake.headers.authorization;
-//   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-//     return next(new Error('Authentication error: No token provided'));
-//   }
-//   const token = authHeader.split(' ')[1];
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  },
+});
 
-//   if (!token) {
-//     return next(new Error('Authentication error Token is not valid'));
-//   }
-//   jwt.verify(token, JWT_SECRET, (err, user) => {
-//     if (err) {
-//       return next(new Error('Authentication error: Invalid token'));
-//     }
-//     socket.user = user;  // What user?
-//     next();
-//   });
-// });
 
-cron.schedule('*/10 * * * * *', () => {
-  console.log('Running scheduled log processing job...');
+// DB Connection Check
+(async () => {
+  try {
+    await prisma.$connect();
+    console.log("Database connection successful.");
+  } catch (error) {
+    console.error("Failed to connect to the database:", error);
+    process.exit(1);
+  }
+})();
+
+// CRON Job
+cron.schedule("*/10 * * * * *", () => {
+  console.log("Running scheduled log processing job...");
   runLogProcessor();
 });
 
-
-
-
-// Placeholder for NLP verification
-async function verifyFlip(message) {
-  // In a real application, this would involve a call to an NLP service
-  console.log(`Verifying flip message: "${message}"`);
-  return new Promise(resolve => setTimeout(() => resolve(true), 1000));
-}
-
-io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+// WebSocket Events
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
 
   socket.on("sendMessage", (data) => {
     const { content, roomId } = data;
@@ -89,60 +55,138 @@ io.on('connection', (socket) => {
   });
 });
 
-
 // REST Endpoints
 
-app.post('/createUser', async (req, res) => {
+// Create or update user
+app.post("/createUser", async (req, res) => {
   const { walletAddress, username } = req.body;
   if (!walletAddress || !username) {
-    return res.status(400).json({ error: 'Wallet address and username are required' });
+    return res
+      .status(400)
+      .json({ error: "Wallet address and username are required" });
   }
+
   try {
     let user = await prisma.User.findUnique({ where: { walletAddress } });
     if (!user) {
-      user = await prisma.User.create({
-        data: {
-          walletAddress,
-          username,
-        },
-      });
+      user = await prisma.User.create({ data: { walletAddress, username } });
     } else {
       user = await prisma.User.update({
         where: { walletAddress },
-        data: {
-          username,
-        },
+        data: { username },
       });
     }
     res.json(user);
   } catch (error) {
-    console.error('Error creating or updating user:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error creating/updating user:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post('/rooms', async (req, res) => {
-  const { topic } = req.body;
-  if (!topic) {
-    return res.status(400).json({ error: 'Topic is required' });
+// Get all rooms with debates
+app.get("/rooms", async (req, res) => {
+  try {
+    const rooms = await prisma.Room.findMany({
+      where: { isActive: true },
+      include: {
+        debate: {
+          include: {
+            users: true,
+            messages: true,
+          },
+        },
+      },
+    });
+    res.json(rooms);
+  } catch (error) {
+    console.error("Error fetching rooms:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
-  const room = await prisma.Room.create({
-    data: {
-      topic,
-    },
-  });
-  res.json(room);
 });
 
-app.get('/rooms', async (req, res) => {
-  const rooms = await prisma.Debate.findMany({
-   
-  });
-  res.json(rooms);
+// Create a new room (and associated debate)
+app.post("/rooms", async (req, res) => {
+  const { title, description, duration } = req.body;
+  if (!title || !duration) {
+    return res.status(400).json({ error: "Title and duration are required" });
+  }
+
+  try {
+    const newDebate = await prisma.Debate.create({
+      data: {
+        title,
+        description,
+        duration,
+      },
+    });
+
+    const room = await prisma.room.create({
+      data: {
+        duration,
+        debateId: newDebate.debateId,
+      },
+    });
+
+    res.json({ room, debate: newDebate });
+  } catch (error) {
+    console.error("Error creating room:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
+// Join a room (assigns user to a team and links to debate)
+app.post("/rooms/:roomId/join", async (req, res) => {
+  const { walletAddress } = req.body;
+  const { roomId } = req.params;
 
+  if (!walletAddress) {
+    return res.status(400).json({ error: "Wallet address is required" });
+  }
 
+  try {
+    const user = await prisma.User.findUnique({ where: { walletAddress } });
+    const room = await prisma.Room.findUnique({
+      where: { id: roomId },
+      include: { debate: true },
+    });
+
+    if (!user || !room || !room.debate) {
+      return res.status(404).json({ error: "User or room not found" });
+    }
+
+    const currentUsers = await prisma.User.findMany({
+      where: { debateId: room.debate.debateId },
+    });
+
+    if (currentUsers.find((u) => u.id === user.id)) {
+      return res.status(200).json({ message: "User already joined" });
+    }
+
+    if (currentUsers.length >= 10) {
+      return res.status(400).json({ error: "Room is full" });
+    }
+
+    const team =
+      currentUsers.filter((u) => u.team === 1).length <=
+      currentUsers.filter((u) => u.team === 2).length
+        ? 1
+        : 2;
+
+    const updatedUser = await prisma.User.update({
+      where: { id: user.id },
+      data: {
+        debateId: room.debate.debateId,
+        team,
+        joinedAt: new Date(),
+      },
+    });
+
+    res.json({ message: "Joined room", user: updatedUser, team });
+  } catch (error) {
+    console.error("Error joining room:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
