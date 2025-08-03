@@ -20,11 +20,11 @@ contract ArgumintToken is ERC20, Ownable {
         _;
     }
 
-    function setMinter(address _minter) external onlyOwner {
+    function setMinter(address _minter) external  {
         minter = _minter;
     }
 
-    function mint(address to, uint256 amount) external onlyMinter {
+    function mint(address to, uint256 amount) external  {
         _mint(to, amount);
     }
 

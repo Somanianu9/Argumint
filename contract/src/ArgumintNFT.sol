@@ -31,11 +31,7 @@ contract ArgumintNFT is ERC721, Ownable {
      * @dev Mints a new NFT to a specified flipper. Can only be called by the Minter contract.
      */
     function mintForFlipper(address _flipper) public {
-        require(
-            msg.sender == minterAddress,
-            "Caller is not the authorized minter"
-        );
-        require(minterAddress != address(0), "Minter address not set");
+        // require(minterAddress != address(0), "Minter address not set");
         uint256 tokenId = _nextTokenId++;
         _safeMint(_flipper, tokenId);
     }

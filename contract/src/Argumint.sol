@@ -44,6 +44,8 @@ contract Argumint {
         bool started; // whether the debate has been manually started
         address[] team1;
         address[] team2;
+        uint256 team1Score; // will be used to store scores
+        uint256 team2Score; // will be used to store scores
     }
 
     uint256 public debateCount; // will be used as debate ID
@@ -220,6 +222,7 @@ if (d.started && block.timestamp >= d.startedAt + d.duration) {
         // record persuasion
         user.flipped = true;
         pdr.totalFlips += 1;
+        pdr.points += 3; // 3 points for being persuader
 
 
         emit Flipped(id, msg.sender, _flipper);
@@ -242,6 +245,9 @@ if (d.started && block.timestamp >= d.startedAt + d.duration) {
         d.finalized = true;
         uint256 team1Score = _score(id, d.team1);
         uint256 team2Score = _score(id, d.team2);
+
+        d.team1Score = team1Score;
+        d.team2Score = team2Score;
 
 
         emit Finished(id, team1Score, team2Score);
