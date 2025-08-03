@@ -86,16 +86,8 @@ app.post("/createUser", async (req, res) => {
 // Get all rooms with debates
 app.get("/rooms", async (req, res) => {
   try {
-    const rooms = await prisma.Room.findMany({
+    const rooms = await prisma.Debate.findMany({
       where: { isActive: true },
-      include: {
-        debate: {
-          include: {
-            users: true,
-            messages: true,
-          },
-        },
-      },
     });
     res.json(rooms);
   } catch (error) {
@@ -105,34 +97,7 @@ app.get("/rooms", async (req, res) => {
 });
 
 // Create a new room (and associated debate)
-app.post("/rooms", async (req, res) => {
-  const { title, description, duration } = req.body;
-  if (!title || !duration) {
-    return res.status(400).json({ error: "Title and duration are required" });
-  }
 
-  try {
-    const newDebate = await prisma.Debate.create({
-      data: {
-        title,
-        description,
-        duration,
-      },
-    });
-
-    const room = await prisma.room.create({
-      data: {
-        duration,
-        debateId: newDebate.debateId,
-      },
-    });
-
-    res.json({ room, debate: newDebate });
-  } catch (error) {
-    console.error("Error creating room:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
 
 // Join a room (assigns user to a team and links to debate)
 app.post("/rooms/:roomId/join", async (req, res) => {
