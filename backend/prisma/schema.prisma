@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String    @id @default(cuid())
+  username         String?   @unique
+  walletAddress    String    @unique
+  debateId         Int?
+  team             Int?
+  joinedAt         DateTime?
+  flipsAsPersuader Flip[]    @relation("PersuaderFlips")
+  flips            Flip[]    @relation("UserFlips")
+  messages         Message[]
+  debate           Debate?   @relation(fields: [debateId], references: [debateId])
+}
+
+model Debate {
+  id         Int            @id @default(autoincrement())
+  debateId    Int         @unique
+  title       String
+  description String?
+  isActive    Boolean         @default(true)
+  duration    Int
+  createdAt   DateTime        @default(now())
+  start       DebateStart?
+  finished    FinishedDebate?
+  flips       Flip[]
+  messages    Message[]       @relation("DebateMessages")
+  room        Room?
+  users       User[]
+}
+
+model Room {
+  id       String  @id @default(cuid())
+  isActive Boolean @default(true)
+  duration Int
+  debateId Int? @unique
+  debate   Debate? @relation(fields: [debateId], references: [debateId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  authorId  String
+  debateId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  debate    Debate?  @relation("DebateMessages", fields: [debateId], references: [debateId])
+}
+
+model DebateStart {
+  debateId        Int   @id
+  actualStartTime DateTime
+}
+
+model Flip {
+  id          Int      @id @default(autoincrement())
+  debateId    Int
+  userId      String
+  persuaderId String?
+  flippedAt   DateTime @default(now())
+  fromTeam    String
+  toTeam      String
+  debate      Debate   @relation(fields: [debateId], references: [debateId])
+  persuader   User?    @relation("PersuaderFlips", fields: [persuaderId], references: [id])
+  user        User     @relation("UserFlips", fields: [userId], references: [id])
+}
+
+model FinishedDebate {
+  debateId   Int   @id
+  team1Score Int
+  team2Score Int
+  endedAt    DateTime @default(now())
+  debate     Debate   @relation(fields: [debateId], references: [debateId])
+}
+
+model source_1 {
+  id                String   @id
+  block_number      BigInt?
+  block_hash        String?
+  transaction_hash  String?
+  transaction_index BigInt?
+  log_index         BigInt?
+  address           String?
+  data              String?
+  topics            String?
+  block_timestamp   BigInt?
+  processed         Boolean?  @default(false)
+}

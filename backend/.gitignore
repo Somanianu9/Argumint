@@ -1,1 +1,4 @@
-node_modules/
+ ag/contracts
+node_modules
+.env
+
