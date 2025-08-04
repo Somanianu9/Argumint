@@ -21,7 +21,6 @@ const io = new Server(server, {
   },
 });
 
-
 // DB Connection Check
 (async () => {
   try {
@@ -44,14 +43,67 @@ io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
 
   socket.on("sendMessage", (data) => {
-    const { content, roomId } = data;
-    console.log(`Message received: ${content} for room ${roomId}`);
-    socket.to(roomId).emit("receiveMessage", content);
+    const { content, roomId, sender, team, timestamp } = data;
+    console.log(`Message received: ${content} for room ${roomId} from ${sender}`);
+    
+    // Broadcast the full message data to all other users in the room
+    socket.to(roomId).emit("receiveMessage", {
+      content,
+      sender,
+      team,
+      timestamp,
+      userId: socket.id
+    });
   });
 
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
     console.log(`Socket ${socket.id} joined room ${roomId}`);
+  });
+
+  // Get debate info including timer data
+  socket.on("getDebateInfo", async (debateId) => {
+    try {
+      const debate = await prisma.Debate.findUnique({
+        where: { debateId: parseInt(debateId) },
+        include: {
+          _count: {
+            select: {
+              users: {
+                where: { team: 1 },
+              },
+            },
+          },
+        },
+      });
+
+      if (debate) {
+        // Get team counts
+        const team1Count = await prisma.User.count({
+          where: { debateId: parseInt(debateId), team: 1 },
+        });
+
+        const team2Count = await prisma.User.count({
+          where: { debateId: parseInt(debateId), team: 2 },
+        });
+
+        const debateInfo = {
+          title: debate.title,
+          description: debate.description,
+          duration: debate.duration, // Duration in minutes from database
+          isActive: debate.isActive,
+          team1Count,
+          team2Count,
+          startTime: debate.startedAt, // When the debate actually started
+          createdAt: debate.createdAt, // When the debate was created
+        };
+
+        socket.emit("debateInfo", debateInfo);
+      }
+    } catch (error) {
+      console.error("Error fetching debate info:", error);
+      socket.emit("debateInfoError", { error: "Failed to fetch debate info" });
+    }
   });
 });
 
@@ -86,16 +138,8 @@ app.post("/createUser", async (req, res) => {
 // Get all rooms with debates
 app.get("/rooms", async (req, res) => {
   try {
-    const rooms = await prisma.Room.findMany({
+    const rooms = await prisma.Debate.findMany({
       where: { isActive: true },
-      include: {
-        debate: {
-          include: {
-            users: true,
-            messages: true,
-          },
-        },
-      },
     });
     res.json(rooms);
   } catch (error) {
@@ -104,35 +148,20 @@ app.get("/rooms", async (req, res) => {
   }
 });
 
-// Create a new room (and associated debate)
-app.post("/rooms", async (req, res) => {
-  const { title, description, duration } = req.body;
-  if (!title || !duration) {
-    return res.status(400).json({ error: "Title and duration are required" });
-  }
-
+app.get("/upcomingDebates", async (req, res) => {
   try {
-    const newDebate = await prisma.Debate.create({
-      data: {
-        title,
-        description,
-        duration,
-      },
+    const upcomingDebates = await prisma.Debate.findMany({
+      where: { isActive: false },
+      orderBy: { createdAt: "desc" }, // Order by most recent first
     });
-
-    const room = await prisma.room.create({
-      data: {
-        duration,
-        debateId: newDebate.debateId,
-      },
-    });
-
-    res.json({ room, debate: newDebate });
+    res.json(upcomingDebates);
   } catch (error) {
-    console.error("Error creating room:", error);
+    console.error("Error fetching upcoming debates:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// Create a new room (and associated debate)
 
 // Join a room (assigns user to a team and links to debate)
 app.post("/rooms/:roomId/join", async (req, res) => {
@@ -184,6 +213,31 @@ app.post("/rooms/:roomId/join", async (req, res) => {
     res.json({ message: "Joined room", user: updatedUser, team });
   } catch (error) {
     console.error("Error joining room:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/globalLeaderboard", async (_req, res) => {
+  try {
+    const users = await prisma.User.findMany({
+      select: {
+        id: true,
+        username: true,
+        walletAddress: true,
+        points: true,
+      },
+    });
+    // Convert points to number for sorting, default to 0 if not a valid number
+    const leaderboard = users
+      .map((u) => ({
+        ...u,
+        points: isNaN(Number(u.points)) ? 0 : Number(u.points),
+      }))
+      .sort((a, b) => b.points - a.points)
+      .slice(0, 10);
+    res.json(leaderboard);
+  } catch (error) {
+    console.error("Error fetching global leaderboard:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
