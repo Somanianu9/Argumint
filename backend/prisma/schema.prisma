@@ -14,6 +14,7 @@ model User {
   debateId         Int?
   team             Int?
   joinedAt         DateTime?
+  points           String?
   flipsAsPersuader Flip[]    @relation("PersuaderFlips")
   flips            Flip[]    @relation("UserFlips")
   messages         Message[]
@@ -21,8 +22,7 @@ model User {
 }
 
 model Debate {
-  id         Int            @id @default(autoincrement())
-  debateId    Int         @unique
+  debateId    Int             @id
   title       String
   description String?
   isActive    Boolean         @default(true)
@@ -40,7 +40,7 @@ model Room {
   id       String  @id @default(cuid())
   isActive Boolean @default(true)
   duration Int
-  debateId Int? @unique
+  debateId Int?    @unique
   debate   Debate? @relation(fields: [debateId], references: [debateId])
 }
 
@@ -51,12 +51,13 @@ model Message {
   authorId  String
   debateId  Int
   author    User     @relation(fields: [authorId], references: [id])
-  debate    Debate?  @relation("DebateMessages", fields: [debateId], references: [debateId])
+  debate    Debate   @relation("DebateMessages", fields: [debateId], references: [debateId])
 }
 
 model DebateStart {
-  debateId        Int   @id
+  debateId        Int      @id
   actualStartTime DateTime
+  debate          Debate   @relation(fields: [debateId], references: [debateId])
 }
 
 model Flip {
@@ -73,7 +74,7 @@ model Flip {
 }
 
 model FinishedDebate {
-  debateId   Int   @id
+  debateId   Int      @id
   team1Score Int
   team2Score Int
   endedAt    DateTime @default(now())
@@ -91,5 +92,5 @@ model source_1 {
   data              String?
   topics            String?
   block_timestamp   BigInt?
-  processed         Boolean?  @default(false)
+  processed         Boolean? @default(false)
 }

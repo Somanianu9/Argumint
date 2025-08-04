@@ -108,8 +108,16 @@ async function handleDebateCreated(tx, args, timestamp) {
     );
   }
 
-  await tx.debate.create({
-    data: {
+  await tx.debate.upsert({
+    where: {
+      debateId: debateId,
+    },
+    update: {
+      title: title,
+      duration: duration,
+      isActive: true,
+    },
+    create: {
       debateId: debateId,
       title: title,
       duration: duration,
@@ -144,8 +152,14 @@ async function handleDebateStarted(tx, args) {
     );
   }
 
-  await tx.debateStart.create({
-    data: {
+  await tx.debateStart.upsert({
+    where: {
+      debateId: debateId,
+    },
+    update: {
+      actualStartTime: startTime,
+    },
+    create: {
       debateId: debateId,
       actualStartTime: startTime,
     },
@@ -203,9 +217,15 @@ async function handleFinished(tx, args, timestamp) {
     );
   }
 
-  // Create the FinishedDebate record
-  await tx.finishedDebate.create({
-    data: {
+  // Create or update the FinishedDebate record
+  await tx.finishedDebate.upsert({
+    where: { debateId: debateId },
+    update: {
+      team1Score: team1Score,
+      team2Score: team2Score,
+      endedAt: new Date(timestamp * 1000),
+    },
+    create: {
       debateId: debateId,
       team1Score: team1Score,
       team2Score: team2Score,
