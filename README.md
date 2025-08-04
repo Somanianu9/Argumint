@@ -68,6 +68,7 @@ npm install
 # Install forge dependencies
 cd ../contracts
 forge install
+forge build 
 ```
 
 > **Note:** Remember to set up your `.env` files with keys for:
@@ -85,20 +86,20 @@ forge install
 
 ---
 
-## 🧪 Local Setup
+## 🧪 Testing
 
 ```bash
 # Backend
 cd backend
-npm start
+npm run test
 
 # Frontend unit
 cd ../frontend
-npm run dev
+npm run test
 
 # Smart contract
 cd ../contracts
-forge build
+forge test
 ```
 
 ---
