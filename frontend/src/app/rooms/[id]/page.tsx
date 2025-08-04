@@ -5,10 +5,6 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
 import { Users, Clock, Trophy, MessageCircle, LogOut, RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { ethers } from 'ethers';
-import contractABI from '../../../../utils/Argumint.json';
-
-const argumintAddress = process.env.NEXT_PUBLIC_ARGUMINT_ADDRESS || "0xbc68bfB752DEB38171262344136B375E161BD24E";
 
 interface Message {
   content: string;
@@ -141,7 +137,7 @@ export default function RoomPage() {
     return () => {
       socket.disconnect();
     };
-  }, [roomId, searchParams]);
+  }, [roomId, searchParams, debateInfo]);
 
   // Debug effect to track userTeam changes
   useEffect(() => {
@@ -240,14 +236,6 @@ export default function RoomPage() {
     }
   };
 
-  const getTeamColor = (team: number) => {
-    return team === 1 ? 'bg-blue-100 border-blue-300' : 'bg-red-100 border-red-300';
-  };
-
-  const getTeamTextColor = (team: number) => {
-    return team === 1 ? 'text-blue-800' : 'text-red-800';
-  };
-
   const persuadeUser = async (targetUserAddress: string) => {
     if (!userTeam || !targetUserAddress) {
       setSwitchError("Missing team or target address");
@@ -310,22 +298,26 @@ export default function RoomPage() {
         });
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("MOCK: Error persuading user:", error);
 
       // Mock error handling
-      if (error.message?.includes("Invalid wallet address")) {
-        setSwitchError("Invalid wallet address format");
-      } else if (error.message?.includes("same team")) {
-        setSwitchError("Target user is on the same team as you");
-      } else if (error.message?.includes("already been persuaded")) {
-        setSwitchError("This user has already been persuaded");
-      } else if (error.message?.includes("not found")) {
-        setSwitchError("User not found in this debate");
-      } else if (error.message?.includes("hasn't started")) {
-        setSwitchError("Debate hasn't started yet");
+      if (error instanceof Error) {
+        if (error.message?.includes("Invalid wallet address")) {
+          setSwitchError("Invalid wallet address format");
+        } else if (error.message?.includes("same team")) {
+          setSwitchError("Target user is on the same team as you");
+        } else if (error.message?.includes("already been persuaded")) {
+          setSwitchError("This user has already been persuaded");
+        } else if (error.message?.includes("not found")) {
+          setSwitchError("User not found in this debate");
+        } else if (error.message?.includes("hasn't started")) {
+          setSwitchError("Debate hasn't started yet");
+        } else {
+          setSwitchError(error.message || "Failed to persuade user");
+        }
       } else {
-        setSwitchError(error.message || "Failed to persuade user");
+        setSwitchError("An unexpected error occurred");
       }
     } finally {
       setSwitchLoading(false);
@@ -623,7 +615,7 @@ export default function RoomPage() {
                     '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
                     '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
                     '0x2A86dbc85C647CAc12f0b474bd18dA7EEFc7BDDE'
-                  ].map((addr, i) => (
+                  ].map((addr) => (
                     <button
                       key={addr}
                       onClick={() => setTargetAddress(addr)}

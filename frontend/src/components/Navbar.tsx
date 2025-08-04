@@ -2,7 +2,7 @@
 'use client'
 
 import React from 'react'
-import { Trophy, Gem, Zap, ShoppingBag, Gift, Wallet } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { useOpenConnectModal, useWallets } from '@0xsequence/connect'
 import { useState, useEffect } from 'react';
 
@@ -11,10 +11,7 @@ const Navbar: React.FC = () => {
   const { setOpenConnectModal } = useOpenConnectModal();
   const {
     wallets,
-    linkedWallets,
-    setActiveWallet,
     disconnectWallet,
-    refetchLinkedWallets
   } = useWallets();
 
   const [activeWalletAddress, setActiveWalletAddress] = useState<string | null>(null);
@@ -134,7 +131,7 @@ const Navbar: React.FC = () => {
         <button className="group relative overflow-hidden bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-6 py-3 rounded-xl font-bold text-sm tracking-wide shadow-lg transform hover:scale-105 transition-all duration-300 border border-white/20">
           <div className="absolute inset-0 bg-white/10 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
           <div className="relative flex items-center gap-2">
-            <ShoppingBag className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+            <Wallet className="w-4 h-4 group-hover:rotate-12 transition-transform" />
             SHOP
           </div>
         </button>
