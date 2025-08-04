@@ -1,22 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import {  Users, Calendar, Star, MessageSquare,  UserPlus } from 'lucide-react'
-import Navbar from './Navbar'
+import { Users, Calendar, Star, MessageSquare, UserPlus } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { ethers } from 'ethers'
-import LeaderboardCompact from './leaderboard-compact'
-import contractABI from '../../utils/Argumint.json'
+import CompactLeaderboard from './leaderboard-compact'
+import Navbar from './Navbar'
 import { socket } from '../../utils/socket'
-
-const argumintAddress = process.env.NEXT_PUBLIC_ARGUMINT_ADDRESS || "0xbc68bfB752DEB38171262344136B375E161BD24E";
-
-interface Message {
-  id: string;
-  content: string;
-  authorId: string;
-  createdAt: string;
-}
 
 interface Room {
   debateId: number;
@@ -34,23 +23,8 @@ interface UpcomingDebate {
   createdAt: string;
 }
 
-interface NewsItem {
-  id: string
-  title: string
-  icon: React.ReactNode
-  color: string
-}
-
-interface Friend {
-  id: string
-  name: string
-  avatar: React.ReactNode
-  status: 'online' | 'offline'
-}
-
 const ChatRoom: React.FC = () => {
   const router = useRouter();
-  const [selectedMode, setSelectedMode] = useState<'create' | 'join' | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [rooms, setRooms] = useState<{ id: string; topic: string }[]>([])
   const [upcomingDebates, setUpcomingDebates] = useState<UpcomingDebate[]>([])
@@ -130,26 +104,11 @@ const ChatRoom: React.FC = () => {
         return;
       }
 
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+      // Mock joining team logic for demo
+      console.log('Mock: Joining team', team, 'for room', selectedRoom.id);
 
-      const contract = new ethers.Contract(argumintAddress, contractABI, signer);
-
-      // Get the join fee
-      const joinFee = await contract.JOIN_FEE();
-
-      // Call joinTeam function with the debate ID, team, and join fee
-      const transaction = await contract.joinTeam(
-        parseInt(selectedRoom.id),
-        team,
-        { value: joinFee }
-      );
-
-      console.log("Transaction sent:", transaction.hash);
-
-      // Wait for transaction to be mined
-      const receipt = await transaction.wait();
-      console.log("Transaction confirmed:", receipt);
+      // Simulate a small delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // If successful, proceed to join the room via websocket and navigate
       if (socket && socket.connected) {
@@ -160,16 +119,10 @@ const ChatRoom: React.FC = () => {
       // Navigate to the debate room
       router.push(`/rooms/${selectedRoom.id}?topic=${encodeURIComponent(selectedRoom.topic)}&team=${team}`);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error joining team:", error);
 
-      if (error.code === 4001) {
-        setJoinError("Transaction rejected by user.");
-      } else if (error.reason) {
-        setJoinError(`Transaction failed: ${error.reason}`);
-      } else if (error.data?.message) {
-        setJoinError(`Smart contract error: ${error.data.message}`);
-      } else if (error.message) {
+      if (error instanceof Error) {
         setJoinError(`Error: ${error.message}`);
       } else {
         setJoinError("An unexpected error occurred while joining the debate.");
@@ -337,7 +290,7 @@ const ChatRoom: React.FC = () => {
             {/* Action Section */}
             <div className="flex justify-center">
               <button
-                onClick={() => { setSelectedMode('join'); setShowJoinModal(true); }}
+                onClick={() => { setShowJoinModal(true); }}
                 className="group relative overflow-hidden px-16 py-6 rounded-3xl font-bold text-2xl tracking-wide transition-all duration-500 transform hover:scale-110 shadow-2xl border-2 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 border-white/20 text-white"
                 style={{ fontFamily: 'Montserrat, Inter, sans-serif' }}
               >
@@ -419,7 +372,7 @@ const ChatRoom: React.FC = () => {
                       </h2>
 
                       <p className="text-white/80 text-center mb-8 text-lg" style={{ fontFamily: 'Inter, sans-serif' }}>
-                        Debate: <span className="font-bold text-white">"{selectedRoom.topic}"</span>
+                        Debate: <span className="font-bold text-white">&ldquo;{selectedRoom.topic}&rdquo;</span>
                       </p>
 
                       {joinError && (
@@ -486,7 +439,7 @@ const ChatRoom: React.FC = () => {
           </div>
           {/* Right Sidebar - Compact Leaderboard */}
           <div className="w-80">
-            <LeaderboardCompact />
+            <CompactLeaderboard />
           </div>
         </div>
       </div>

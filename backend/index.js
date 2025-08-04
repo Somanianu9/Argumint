@@ -44,15 +44,17 @@ io.on("connection", (socket) => {
 
   socket.on("sendMessage", (data) => {
     const { content, roomId, sender, team, timestamp } = data;
-    console.log(`Message received: ${content} for room ${roomId} from ${sender}`);
-    
+    console.log(
+      `Message received: ${content} for room ${roomId} from ${sender}`
+    );
+
     // Broadcast the full message data to all other users in the room
     socket.to(roomId).emit("receiveMessage", {
       content,
       sender,
       team,
       timestamp,
-      userId: socket.id
+      userId: socket.id,
     });
   });
 

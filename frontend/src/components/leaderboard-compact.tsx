@@ -45,7 +45,7 @@ export default function LeaderboardCompact() {
                 const data = await response.json();
 
                 // Map API data to LeaderboardUser type and add rank
-                const mapped: LeaderboardUser[] = data.map((user: any, idx: number) => ({
+                const mapped: LeaderboardUser[] = data.map((user: LeaderboardUser, idx: number) => ({
                     id: user.id,
                     username: user.username,
                     walletAddress: user.walletAddress,
