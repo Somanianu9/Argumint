@@ -41,7 +41,7 @@ export default function LeaderboardCompact() {
         const fetchLeaderboard = async () => {
             setLoading(true);
             try {
-                const response = await fetch("http://localhost:3001/globalLeaderboard");
+                const response = await fetch("https://argumint-3y9b.onrender.com/globalLeaderboard");
                 const data = await response.json();
 
                 // Map API data to LeaderboardUser type and add rank
