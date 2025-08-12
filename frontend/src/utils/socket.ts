@@ -15,7 +15,7 @@ class SocketManager {
 
   public connect(): Socket {
     if (!this.socket || !this.socket.connected) {
-      this.socket = io('http://localhost:3001', {
+      this.socket = io('https://argumint-3y9b.onrender.com', {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
