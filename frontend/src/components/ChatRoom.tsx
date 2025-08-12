@@ -67,7 +67,7 @@ const ChatRoom: React.FC = () => {
 
   const getRooms = async () => {
     try {
-      const res = await fetch(`http://localhost:3001/rooms`);
+      const res = await fetch(`https://argumint-3y9b.onrender.com/rooms`);
       if (res.ok) {
         const data: Room[] = await res.json();
         setRooms(
@@ -145,7 +145,7 @@ const ChatRoom: React.FC = () => {
 
   const getUpcomingDebates = async () => {
     try {
-      const res = await fetch(`http://localhost:3001/upcomingDebates`);
+      const res = await fetch(`https://argumint-3y9b.onrender.com/upcomingDebates`);
       if (res.ok) {
         const data: Room[] = await res.json();
         setUpcomingDebates(

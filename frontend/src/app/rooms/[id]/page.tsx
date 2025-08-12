@@ -75,7 +75,9 @@ export default function RoomPage() {
       console.log('No team found in query params or localStorage');
     }
 
-    socket = io('http://localhost:3001');
+    // socket = io('http://localhost:3001');
+    socket = io('https://argumint-3y9b.onrender.com');
+
 
     socket.on("connect", () => {
       console.log("Connected with ID:", socket.id);
